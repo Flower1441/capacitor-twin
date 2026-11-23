@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>平行板电容器 · 数字孪生平台</title>
+<style>
+  :root{
+    --bg:#faf9f5; --card:#ffffff; --line:#e9e4db; --ink:#2b2724; --muted:#7d746a;
+    --accent:#d97757; --accent-soft:#f6e5dd; --pos:#c8553d; --neg:#3f6fa8;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC",sans-serif;
+    -webkit-font-smoothing:antialiased;
+    padding:26px 20px 40px;
+  }
+  .wrap{max-width:1120px;margin:0 auto}
+  header{margin-bottom:18px}
+  h1{font-size:21px;margin:0 0 5px;letter-spacing:.2px}
+  .sub{font-size:12.5px;color:var(--muted)}
+  .grid{display:grid;grid-template-columns:1.12fr .88fr;gap:16px;align-items:stretch}
+  @media (max-width:900px){.grid{grid-template-columns:1fr}}
+  .vizcard{display:flex;flex-direction:column}
+  .vizbody{margin:auto 0}
+  .vizcard .hint{margin-top:12px}
+  .card{
+    background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:16px 18px;box-shadow:0 1px 2px rgba(60,45,30,.04);
+  }
+  .card h2{font-size:12.5px;font-weight:600;color:var(--muted);margin:0 0 10px;letter-spacing:.6px}
+  /* ---------- 可视化 ---------- */
+  #viz{width:100%;display:block;border-radius:10px;background:
+      radial-gradient(120% 90% at 50% 0%,#fffdfa 0%,#fbf8f3 100%);
+      border:1px solid #f0ece4;touch-action:none;cursor:grab}
+  #viz.drag{cursor:grabbing}
+  .hint{font-size:11.5px;color:var(--muted);margin-top:8px;display:flex;gap:14px;flex-wrap:wrap}
+  .hint span::before{content:"·";margin-right:5px;color:#c9c1b6}
+  /* ---------- 参数 ---------- */
+  .formula{
+    text-align:center;font-family:"Cambria Math","Times New Roman",serif;font-size:17px;
+    background:var(--accent-soft);border-radius:9px;padding:7px 0;margin:0 0 14px;color:#7a4630;
+  }
+  .formula i{font-style:italic}
+  .ctrl{margin-bottom:13px}
+  .ctrl .row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px}
+  .ctrl label{font-size:12.5px;color:#4a443e}
+  .ctrl .val{font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--accent)}
+  input[type=range]{
+    width:100%;-webkit-appearance:none;appearance:none;height:4px;border-radius:3px;
+    background:#e8e2d9;outline:none;margin:6px 0 0;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;width:17px;height:17px;border-radius:50%;background:#fff;
+    border:2.5px solid var(--accent);box-shadow:0 1px 3px rgba(0,0,0,.16);cursor:pointer;
+  }
+  input[type=range]::-moz-range-thumb{
+    width:15px;height:15px;border-radius:50%;background:#fff;border:2.5px solid var(--accent);cursor:pointer;
+  }
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
+  .chip{
+    font:inherit;font-size:11.5px;padding:3px 9px;border-radius:99px;cursor:pointer;
+    border:1px solid var(--line);background:#fdfcfa;color:#5f574f;transition:.12s;
+  }
+  .chip:hover{border-color:#d8cfc2;background:#f7f4ee}
+  .chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  /* ---------- 读数 ---------- */
+  .kvs{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-top:4px}
+  .kv{background:#fff;padding:9px 11px}
+  .kv .k{font-size:11px;color:var(--muted);margin-bottom:2px}
+  .kv .v{font-size:15.5px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:.1px}
+  .kv .v small{font-size:11px;font-weight:500;color:var(--muted);margin-left:2px}
+  /* ---------- 图表 ---------- */
+  .tabs{display:flex;gap:6px;margin-bottom:10px}
+  #chart{width:100%;display:block}
+  /* ---------- 传感 ---------- */
+  .sensor{margin-top:16px}
+  .sensor .head{display:flex;justify-content:space-between;align-items:baseline}
+  .sensor .head .t{font-size:13px;font-weight:600}
+  .sensor .head .d{font-size:11.5px;color:var(--muted)}
+  .out{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:9px}
+  .out div{background:#fbf9f6;border:1px solid #f0ece4;border-radius:9px;padding:7px 9px}
+  .out .k{font-size:10.5px;color:var(--muted)}
+  .out .v{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums}
+  @media (max-width:520px){.out{grid-template-columns:1fr 1fr}}
+  .foot{margin-top:18px;font-size:11.5px;color:#a49b90;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>平行板电容器 · 数字孪生平台</h1>
+    <div class="sub">拖动滑块或直接用鼠标拖动上极板 —— 电容、电荷、场强、储能实时联动，并模拟电容式位移传感。</div>
+  </header>
+
+  <div class="grid">
+    <!-- 左：可视化 -->
+    <div class="card vizcard">
+      <h2>极板与场分布</h2>
+      <div class="vizbody">
+        <canvas id="viz"></canvas>
+        <div class="hint">
+          <span>拖动上极板改变板间距 d</span>
+          <span>+Q 与 −Q 等量异号</span>
+          <span>箭头密度对应场强 E</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右：参数 + 读数 -->
+    <div class="card">
+      <h2>可调参数</h2>
+      <div class="formula"><i>C</i> = <i>ε</i><sub>0</sub><i>ε</i><sub>r</sub><i>S</i> / <i>d</i></div>
+
+      <div class="ctrl">
+        <div class="row"><label for="sd">板间距离 <i>d</i></label><span class="val" id="vd">1.00 mm</span></div>
+        <input id="sd" type="range" min="0.05" max="5" step="0.01" value="1">
+        <div class="chips">
+          <button class="chip" data-d="0.5">0.50 mm</button>
+          <button class="chip" data-d="1">1.00 mm</button>
+          <button class="chip" data-d="2">2.00 mm</button>
+        </div>
+      </div>
+
+      <div class="ctrl">
+        <div class="row"><label for="ss">极板面积 <i>S</i></label><span class="val" id="vs">100 cm²</span></div>
+        <input id="ss" type="range" min="1" max="100" step="1" value="100">
+      </div>
+
+      <div class="ctrl">
+        <div class="row"><label for="se">相对介电常数 <i>ε</i><sub>r</sub></label><span class="val" id="ve">1.00（空气）</span></div>
+        <input id="se" type="range" min="1" max="10" step="0.05" value="1">
+        <div class="chips" id="media">
+          <button class="chip on" data-e="1">空气 1.0</button>
+          <button class="chip" data-e="3.7">纸 3.7</button>
+          <button class="chip" data-e="5.0">玻璃 5.0</button>
+          <button class="chip" data-e="10">陶瓷 10</button>
+        </div>
+      </div>
+
+      <div class="ctrl" style="margin-bottom:8px">
+        <div class="row"><label for="su">板间电压 <i>U</i></label><span class="val" id="vu">100 V</span></div>
+        <input id="su" type="range" min="0" max="300" step="1" value="100">
+      </div>
+
+      <h2 style="margin-top:16px">实时输出</h2>
+      <div class="kvs">
+        <div class="kv"><div class="k">电容 C</div><div class="v" id="oC">–</div></div>
+        <div class="kv"><div class="k">电荷量 Q</div><div class="v" id="oQ">–</div></div>
+        <div class="kv"><div class="k">电荷面密度 σ</div><div class="v" id="oS">–</div></div>
+        <div class="kv"><div class="k">板间场强 E</div><div class="v" id="oE">–</div></div>
+        <div class="kv"><div class="k">储能 W</div><div class="v" id="oW">–</div></div>
+        <div class="kv"><div class="k">灵敏度 dC/dd</div><div class="v" id="oK">–</div></div>
+      </div>
+    </div>
+
+    <!-- 下：曲线 -->
+    <div class="card" style="grid-column:1/-1">
+      <h2>关系曲线</h2>
+      <div class="tabs">
+        <button class="chip on" id="tabC">C–d 曲线</button>
+        <button class="chip" id="tabE">E–d 曲线</button>
+      </div>
+      <canvas id="chart"></canvas>
+    </div>
+
+    <!-- 下：传感器 -->
+    <div class="card sensor" style="grid-column:1/-1">
+      <div class="head">
+        <div class="t">位移传感模式（对应微创手术机器人传感器）</div>
+        <div class="d">被测物体带动上极板位移 x → 电容变化 ΔC → 由 ΔC 反推 x</div>
+      </div>
+      <div class="ctrl" style="margin:11px 0 0">
+        <div class="row"><label for="sx">极板位移 x（向下为正）</label><span class="val" id="vx">0.000 mm</span></div>
+        <input id="sx" type="range" min="0" max="0.5" step="0.001" value="0">
+      </div>
+      <div class="out">
+        <div><div class="k">实际位移 x</div><div class="v" id="sx1">–</div></div>
+        <div><div class="k">电容变化 ΔC</div><div class="v" id="sx2">–</div></div>
+        <div><div class="k">由 ΔC 反推位移</div><div class="v" id="sx3">–</div></div>
+      </div>
+      <div class="hint" style="margin-top:9px">
+        <span id="sx4">反推公式 x ≈ d₀·ΔC/C₀</span>
+        <span id="sx5">位移分辨率 –</span>
+        <span>位移较大时线性近似失效，须用 C = ε₀ε_r S/d 反算 d</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">单文件网页 · 无外部依赖 · 公式 C = ε₀ε_r S / d　（ε₀ = 8.854×10⁻¹² F/m）</div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const EPS0 = 8.854e-12;
+  const D_MIN = 0.05, D_MAX = 5;        // mm
+  const S_MIN = 1, S_MAX = 100;         // cm²
+
+  const state = { d: 1.0, S: 100, epsr: 1.0, U: 100, x: 0, chart: 'C' };
+
+  const $ = id => document.getElementById(id);
+
+  /* ---------- 数值 ---------- */
+  function physics(){
+    const dEff = Math.max(0.02, state.d - state.x);   // mm
+    const d = dEff * 1e-3, S = state.S * 1e-4;
+    const k = EPS0 * state.epsr * S;                  // F·m
+    const C = k / d;
+    const Q = C * state.U;
+    const sigma = Q / S;
+    const E = state.U / d;
+    const W = 0.5 * C * state.U * state.U;
+    return {dEff,d,S,C,Q,sigma,E,W,k};
+  }
+
+  // 自动 SI 前缀格式化
+  function fmt(v, unit){
+    if (!isFinite(v)) return '–';
+    if (v === 0) return '0 ' + unit;
+    const sign = v < 0 ? '−' : '';
+    let a = Math.abs(v);
+    const steps = [[1e9,'G'],[1e6,'M'],[1e3,'k'],[1,''],[1e-3,'m'],[1e-6,'µ'],[1e-9,'n'],[1e-12,'p'],[1e-15,'f']];
+    let p = '';
+    for (const [f,s] of steps){ if (a >= f*0.999){ a = a/f; p = s; break; } }
+    if (a < 0.001) { p='f'; a = Math.abs(v)/1e-15; }
+    let txt = a >= 100 ? a.toFixed(0) : a >= 10 ? a.toFixed(1) : a >= 1 ? a.toFixed(2) : a.toFixed(3);
+    return sign + txt + ' ' + p + unit;
+  }
+  const fixed = (v,n) => (v<0?'−':'') + Math.abs(v).toFixed(n);
+
+  /* ---------- 读数 ---------- */
+  function updateReadouts(){
+    const p = physics();
+    $('vd').textContent = fixed(state.d,2) + ' mm';
+    $('vs').textContent = state.S + ' cm²';
+    $('ve').textContent = state.epsr.toFixed(2) + (Math.abs(state.epsr-1)<1e-9 ? '（空气）' : '');
+    $('vu').textContent = state.U + ' V';
+
+    $('oC').innerHTML = splitUnit(fmt(p.C,'F'));
+    $('oQ').innerHTML = splitUnit(fmt(p.Q,'C'));
+    $('oS').innerHTML = splitUnit(fmt(p.sigma,'C/m²'));
+    $('oE').innerHTML = splitUnit(fmt(p.E,'V/m'));
+    $('oW').innerHTML = splitUnit(fmt(p.W,'J'));
+    const sens = p.k/(Math.pow(p.dEff*1e-3,2)) * 1e-3 / 1e-12; // pF per mm
+    $('oK').innerHTML = (sens>=100?sens.toFixed(0):sens.toFixed(1)) + '<small>pF/mm</small>';
+
+    $('vx').textContent = fixed(state.x,3) + ' mm';
+    const d0 = state.d*1e-3, C0 = p.k/d0;
+    const dEffMm = Math.max(0.02, state.d - state.x);
+    const Cd = p.k/(dEffMm*1e-3);
+    const dC = Cd - C0;
+    const xExact = state.d - (p.k/Cd)*1e3;        // mm，由实测电容反算 d 再求位移
+    const xLin = d0*(dC/C0)*1e3;                  // mm，小位移线性近似（Δd = −x）
+    $('sx1').innerHTML = (state.x*1e3).toFixed(1) + '<small>µm</small>';
+    $('sx2').innerHTML = (dC*1e12).toFixed(3) + '<small>pF</small>';
+    $('sx3').innerHTML = (xExact*1e3).toFixed(2) + '<small>µm</small>';
+    const res = (1e-14 / C0) * state.d;           // mm，按 0.01 pF 电容分辨率
+    const resStr = res*1e3 >= 0.01 ? (res*1e3).toFixed(2) + ' µm' : (res*1e6).toFixed(0) + ' nm';
+    const errPct = state.x > 1e-6 ? Math.abs((xLin - state.x)/state.x)*100 : 0;
+    $('sx4').textContent = '线性近似 x ≈ d₀·ΔC/C₀ = ' + (xLin*1e3).toFixed(2) + ' µm';
+    $('sx5').textContent = '线性近似误差 ' + errPct.toFixed(1) + '% · 位移分辨率 ≈ ' + resStr + '（ΔC 分辨率 0.01 pF）';
+
+    drawViz(); drawChart();
+  }
+  // "88.5 pF" → "88.5<small>pF</small>"
+  function splitUnit(s){
+    const i = s.lastIndexOf(' ');
+    if (i < 0) return s;
+    return s.slice(0,i) + '<small>' + s.slice(i+1) + '</small>';
+  }
+
+  /* ---------- 极板可视化 ---------- */
+  const viz = $('viz'), vctx = viz.getContext('2d');
+  function fitCanvas(cv, h){
+    const dpr = window.devicePixelRatio || 1;
+    const w = cv.clientWidth || cv.parentNode.clientWidth;
+    cv.style.height = h + 'px';
+    cv.width = Math.round(w*dpr); cv.height = Math.round(h*dpr);
+    const ctx = cv.getContext('2d');
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    return {w,h,ctx};
+  }
+  function gapPx(d, maxGap){
+    const t = Math.log(d/D_MIN)/Math.log(D_MAX/D_MIN);
+    return 20 + t*(maxGap-20);
+  }
+  function dFromGap(px, maxGap){
+    let t = (px-20)/(maxGap-20);
+    t = Math.min(1, Math.max(0, t));
+    return D_MIN*Math.pow(D_MAX/D_MIN, t);
+  }
+  function plateWidth(S, maxW){
+    const a = Math.sqrt(S)*10;            // 边长 mm：1cm²→10mm，100cm²→100mm
+    const t = (a-10)/90;
+    return 120 + t*(Math.min(maxW, 560)-120);
+  }
+
+  let vizGeom = null;
+  function drawViz(){
+    const H = 302;
+    const {w,h,ctx} = fitCanvas(viz, H);
+    ctx.clearRect(0,0,w,h);
+
+    const p = physics();
+    const bottomY = h - 52;
+    const maxGap = bottomY - 92;
+    const gap = gapPx(p.dEff, maxGap);
+    const pw = plateWidth(state.S, w - 180);
+    const cx = w/2, topY = bottomY - gap;
+    const th = 13;
+    vizGeom = {cx, pw, topY, bottomY, th, maxGap};
+
+    // 极板
+    function plate(y, isTop){
+      const g = ctx.createLinearGradient(cx-pw/2, y, cx+pw/2, y);
+      g.addColorStop(0,'#5b5550'); g.addColorStop(.5,'#8b8279'); g.addColorStop(1,'#5b5550');
+      ctx.fillStyle = g;
+      const r = 4;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(cx-pw/2, y - (isTop?th:0), pw, th, r);
+      else ctx.rect(cx-pw/2, y - (isTop?th:0), pw, th);
+      ctx.fill();
+    }
+    plate(topY, true);
+    plate(bottomY, false);
+
+    // 场强箭头（从上极板指向下极板）
+    const n = Math.max(3, Math.round(3 + 9*Math.min(1, Math.log10(1+p.E/1e3)/4)));
+    const a0 = Math.min(.85, .18 + .6*Math.min(1, Math.log10(1+p.E/1e3)/3.4));
+    ctx.strokeStyle = 'rgba(217,119,87,'+a0.toFixed(3)+')';
+    ctx.lineWidth = 1.4;
+    if (p.E > 1){
+      for (let i=0;i<n;i++){
+        const x = cx - pw/2 + pw*(i+0.5)/n;
+        const y1 = topY + 3, y2 = bottomY - 4;
+        ctx.beginPath(); ctx.moveTo(x,y1); ctx.lineTo(x,y2); ctx.stroke();
+        // 箭头
+        ctx.beginPath(); ctx.moveTo(x, y2); ctx.lineTo(x-3.2, y2-6); ctx.lineTo(x+3.2, y2-6); ctx.closePath();
+        ctx.fillStyle = 'rgba(217,119,87,'+a0.toFixed(3)+')'; ctx.fill();
+      }
+    }
+
+    // 电荷符号：数量随 Q 变化
+    const qn = Math.max(3, Math.min(14, Math.round(3 + 11*Math.min(1, Math.log10(1+p.Q/5e-10)/3))));
+    ctx.font = '600 12px ui-sans-serif, "Microsoft YaHei", sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (let i=0;i<qn;i++){
+      const x = cx - pw/2 + pw*(i+0.5)/qn;
+      ctx.fillStyle = '#c8553d'; ctx.fillText('+', x, topY + 6.5);
+      ctx.fillStyle = '#3f6fa8'; ctx.fillText('−', x, bottomY - 6.5);
+    }
+
+    // 板间距标注（竖排文字，避免贴边）
+    const lx = Math.max(58, cx - pw/2 - 26);
+    ctx.strokeStyle = '#b9b0a4'; ctx.lineWidth = 1; ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.moveTo(lx, topY); ctx.lineTo(lx, bottomY); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(lx, topY); ctx.lineTo(lx+7, topY);
+    ctx.moveTo(lx, bottomY); ctx.lineTo(lx+7, bottomY); ctx.stroke();
+    // 两端小箭头
+    ctx.beginPath(); ctx.moveTo(lx, topY); ctx.lineTo(lx-3, topY+6); ctx.lineTo(lx+3, topY+6); ctx.closePath();
+    ctx.moveTo(lx, bottomY); ctx.lineTo(lx-3, bottomY-6); ctx.lineTo(lx+3, bottomY-6); ctx.closePath();
+    ctx.fillStyle = '#b9b0a4'; ctx.fill();
+    ctx.save();
+    ctx.translate(lx - 9, (topY+bottomY)/2);
+    ctx.rotate(-Math.PI/2);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#6f665c'; ctx.font = '600 12px ui-sans-serif, "Microsoft YaHei", sans-serif';
+    ctx.fillText('d = ' + fixed(p.dEff,2) + ' mm', 0, 0);
+    ctx.restore();
+
+    // 电荷标注
+    ctx.textAlign = 'left'; ctx.fillStyle = '#c8553d';
+    ctx.fillText('+Q', cx + pw/2 + 10, topY - th/2);
+    ctx.fillStyle = '#3f6fa8';
+    ctx.fillText('−Q', cx + pw/2 + 10, bottomY + th/2);
+
+    // 面积标注
+    ctx.fillStyle = '#9a9186'; ctx.textAlign = 'center'; ctx.font = '11.5px ui-sans-serif, "Microsoft YaHei", sans-serif';
+    ctx.fillText('S = ' + state.S + ' cm²（边长 ' + (Math.sqrt(state.S)*10).toFixed(0) + ' mm）', cx, h - 16);
+
+    // 位移标注
+    if (state.x > 0.0005){
+      ctx.strokeStyle = '#3f6fa8'; ctx.setLineDash([4,3]); ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(cx + pw/2 + 6, topY - th); ctx.lineTo(cx + pw/2 + 6, topY - th - 26); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#3f6fa8'; ctx.textAlign = 'left'; ctx.font = '11.5px ui-sans-serif, "Microsoft YaHei", sans-serif';
+      ctx.fillText('x = ' + fixed(state.x,3) + ' mm', cx + pw/2 + 12, topY - th - 28);
+    }
+  }
+
+  /* ---------- 曲线 ---------- */
+  const chart = $('chart'), cctx = chart.getContext('2d');
+  let chartGeom = null;
+  function drawChart(){
+    const {w,h,ctx} = fitCanvas(chart, 230);
+    ctx.clearRect(0,0,w,h);
+    const L = 52, R = 16, T = 14, B = 26;
+    const pw = w - L - R, ph = h - T - B;
+    const p = physics();
+    const isC = state.chart === 'C';
+    const k = EPS0 * state.epsr * state.S * 1e-4;
+
+    const f = dmm => isC ? k/(dmm*1e-3) : state.U/(dmm*1e-3);
+    const ymax = f(0.2) * 1.02;
+    const x2px = d => L + (d - 0)/5 * pw;
+    const y2px = v => T + ph - Math.min(1, v/ymax) * ph;
+    chartGeom = {L,R,T,B,pw,ph,x2px,y2px};
+
+    // 网格
+    ctx.strokeStyle = '#efeae2'; ctx.lineWidth = 1;
+    for (let i=0;i<=5;i++){
+      const x = L + pw*i/5, y = T + ph*i/5;
+      ctx.beginPath(); ctx.moveTo(x,T); ctx.lineTo(x,T+ph); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(L,y); ctx.lineTo(L+pw,y); ctx.stroke();
+    }
+    // 坐标轴
+    ctx.strokeStyle = '#cfc6b9';
+    ctx.beginPath(); ctx.moveTo(L,T); ctx.lineTo(L,T+ph); ctx.lineTo(L+pw,T+ph); ctx.stroke();
+
+    // 曲线
+    ctx.beginPath(); ctx.strokeStyle = '#d97757'; ctx.lineWidth = 2.2;
+    let started = false;
+    for (let i=0;i<=400;i++){
+      const d = 0.12 + (5-0.12)*i/400;
+      const v = f(d);
+      if (v > ymax) { started = false; continue; }
+      const x = x2px(d), y = y2px(v);
+      if (!started){ ctx.moveTo(x,y); started = true; } else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+
+    // 当前点
+    const cd = p.dEff, cv = isC ? p.C : p.E;
+    if (cv <= ymax && cd >= 0.12){
+      const x = x2px(cd), y = y2px(cv);
+      ctx.strokeStyle = '#cbbfb0'; ctx.setLineDash([3,3]); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x,T+ph); ctx.lineTo(x,y); ctx.lineTo(L,y); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(x,y,4.5,0,Math.PI*2); ctx.fillStyle = '#d97757'; ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.6; ctx.stroke();
+      ctx.fillStyle = '#6f665c'; ctx.font = '11.5px ui-sans-serif,"Microsoft YaHei",sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(isC ? fmt(p.C,'F') : fmt(p.E,'V/m'), Math.min(x+9, w-70), Math.max(y-9, T+11));
+    }
+
+    // 刻度
+    ctx.fillStyle = '#9a9186'; ctx.font = '11px ui-sans-serif,"Microsoft YaHei",sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    for (let i=0;i<=5;i++) ctx.fillText((i).toString(), L + pw*i/5, T+ph+6);
+    ctx.fillText('板间距 d / mm', L + pw/2, T+ph+18 - 4 + 2);
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    const ylab = isC ? 'C' : 'E';
+    for (let i=0;i<=2;i++){
+      const v = ymax*i/2, y = y2px(v);
+      ctx.fillText(i === 0 ? '0' : (isC ? fmt(v,'F') : fmt(v,'V/m')), L-7, y);
+    }
+    ctx.fillStyle = '#9a9186'; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+    ctx.fillText(isC ? 'C' : 'E', L, T - 3);
+  }
+
+  /* ---------- 交互 ---------- */
+  function syncSliders(){
+    $('sd').value = state.d; $('ss').value = state.S;
+    $('se').value = state.epsr; $('su').value = state.U; $('sx').value = state.x;
+  }
+  $('sd').addEventListener('input', e => { state.d = +e.target.value; updateReadouts(); });
+  $('ss').addEventListener('input', e => { state.S = +e.target.value; updateReadouts(); });
+  $('se').addEventListener('input', e => { state.epsr = +e.target.value; markMedia(); updateReadouts(); });
+  $('su').addEventListener('input', e => { state.U = +e.target.value; updateReadouts(); });
+  $('sx').addEventListener('input', e => { state.x = Math.min(+e.target.value, Math.max(0, state.d-0.06)); updateReadouts(); });
+
+  document.querySelectorAll('[data-d]').forEach(b => b.addEventListener('click', () => {
+    state.d = +b.dataset.d; $('sd').value = state.d; updateReadouts();
+  }));
+  function markMedia(){
+    document.querySelectorAll('#media .chip').forEach(c => {
+      c.classList.toggle('on', Math.abs(+c.dataset.e - state.epsr) < 0.03);
+    });
+  }
+  document.querySelectorAll('#media .chip').forEach(c => c.addEventListener('click', () => {
+    state.epsr = +c.dataset.e; $('se').value = state.epsr; markMedia(); updateReadouts();
+  }));
+
+  $('tabC').addEventListener('click', () => setTab('C'));
+  $('tabE').addEventListener('click', () => setTab('E'));
+  function setTab(t){
+    state.chart = t;
+    $('tabC').classList.toggle('on', t==='C');
+    $('tabE').classList.toggle('on', t==='E');
+    drawChart();
+  }
+
+  // 拖动上极板
+  let dragging = false;
+  viz.addEventListener('pointerdown', e => {
+    const r = viz.getBoundingClientRect();
+    const y = e.clientY - r.top;
+    if (vizGeom && Math.abs(y - (vizGeom.topY - vizGeom.th/2)) < 34){
+      dragging = true; viz.classList.add('drag');
+      try { viz.setPointerCapture(e.pointerId); } catch(err){}
+    }
+  });
+  viz.addEventListener('pointermove', e => {
+    if (!dragging || !vizGeom) return;
+    const r = viz.getBoundingClientRect();
+    const y = e.clientY - r.top;
+    const gap = Math.min(vizGeom.maxGap, Math.max(20, vizGeom.bottomY - y));
+    state.d = Math.round(dFromGap(gap, vizGeom.maxGap)*100)/100;
+    state.d = Math.min(D_MAX, Math.max(D_MIN, state.d));
+    if (state.x > state.d - 0.06) state.x = Math.max(0, state.d - 0.06);
+    syncSliders(); updateReadouts();
+  });
+  viz.addEventListener('pointerup', () => { dragging = false; viz.classList.remove('drag'); });
+  viz.addEventListener('pointercancel', () => { dragging = false; viz.classList.remove('drag'); });
+
+  let rt;
+  window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { drawViz(); drawChart(); }, 120); });
+
+  /* ---------- 启动 ---------- */
+  window.__cap = { state, get geom(){ return vizGeom; }, physics };
+  syncSliders(); markMedia(); updateReadouts();
+})();
+</script>
+</body>
+</html>
