@@ -398,7 +398,7 @@
   function drawChart(){
     const {w,h,ctx} = fitCanvas(chart, 230);
     ctx.clearRect(0,0,w,h);
-    const L = 52, R = 16, T = 14, B = 26;
+    const L = 68, R = 16, T = 14, B = 26;
     const pw = w - L - R, ph = h - T - B;
     const p = physics();
     const isC = state.chart === 'C';
